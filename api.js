@@ -2,7 +2,7 @@ import axios from "axios";
 
 const baseURL = "http://192.168.0.53:8123";
 const apiEndpoint = `${baseURL}/api/`;
-const switchEntityID = "switch.sonoff_100095b6e6_1";
+const switchEntityID = "switch.sonoff_100095b6e6_2";
 
 const AUTH_TOKEN =
   "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI5MDg0Y2M2Nzc3ZGQ0ZmYwOGI3ZmFkYzdmNGQ3NDFlMyIsImlhdCI6MTY3MTQ2MDM5NCwiZXhwIjoxOTg2ODIwMzk0fQ.U2cn6LOrWCtosH_AYoWRYzqTwVeFjHzGzMb2fSRTj08";
