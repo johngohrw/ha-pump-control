@@ -1,6 +1,14 @@
 import Head from "next/head";
 import { Inter } from "@next/font/google";
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "react-query";
+import {
+  getPumpOffDatetimeState,
+  getRenderedTemplate,
+  getSwitchState,
+  setPumpOffTime as setPumpOffTimeApi,
+  turnOffPump,
+} from "../api";
 
 const inter = Inter({ subsets: ["latin"] });
 let defaultTimerValue = "00:00";
@@ -22,7 +30,7 @@ export default function Switch() {
   // local state. does not 100% reflect actual timer value.
   const [timerString, setTimerString] = useState(defaultTimerValue);
 
-
+  // switch state api
   const {
     data: switchStateData,
     status: switchStateStatus,
@@ -34,16 +42,44 @@ export default function Switch() {
     refetchInterval: 3000,
   });
 
-  // initial load to get current pumpEnabled state & pumpOffTime from server.
+  // pump off datetime api
+  const {
+    data: pumpOffDatetimeData,
+    status: pumpOffDatetimeStatus,
+    refetch: refetchPumpOffDatetime,
+    isLoading: pumpOffDatetimeIsLoading,
+  } = useQuery({
+    queryKey: "pumpOffDatetime",
+    queryFn: getPumpOffDatetimeState,
+    refetchInterval: 3000,
+  });
+
+  // get current pumpEnabled state from server. runs on initial api load.
   useEffect(() => {
-    const simulatedInitialLoad = setTimeout(() => {
-      // TODO: replace with actual api call
+    console.log("switchStateChange > ", switchStateData);
+    if (switchStateData?.state === "unavailable") {
+      setInitialLoadMessage("Connected to raspberry pi.");
+      setInitialLoadErrorMessage("Cannot connect to pump switch.");
+    }
+    if (switchStateData?.state) {
       setInitialIsLoading(false);
-      setPumpEnabled(true);
-      setPumpOffTime(new Date().setMinutes(new Date().getMinutes() + 10));
-    }, 1000);
-    return () => clearTimeout(simulatedInitialLoad);
-  }, []);
+      setPumpEnabled(switchStateData?.state === "on");
+    }
+  }, [switchStateData]);
+
+  // get current pumpOffTime from server. runs on initial api load.
+  useEffect(() => {
+    if (pumpOffDatetimeData?.state) {
+      if (isDate(pumpOffDatetimeData?.state)) {
+        setPumpOffTime(new Date(pumpOffDatetimeData?.state));
+      } else {
+        console.error(
+          "Failed to fetch a valid pumpOffDatetime state. Returned data:",
+          pumpOffDatetimeData
+        );
+      }
+    }
+  }, [pumpOffDatetimeData]);
 
   // timer update loop based on pumpOffTime.
   useEffect(() => {
@@ -52,10 +88,11 @@ export default function Switch() {
       if (diffTime <= 0) {
         clearInterval(timerUpdate);
       } else {
-        let minutes = `${Math.floor(diffTime / 1000 / 60)}`;
+        let hours = `${Math.floor(diffTime / 1000 / 60 / 60)}`;
+        let minutes = `${Math.floor((diffTime / 1000 / 60) % 60)}`;
         let seconds = `${Math.floor((diffTime / 1000) % 60)}`;
         setTimerString(
-          `${minutes.padStart(2, "0")}:${seconds.padStart(2, "0")}`
+          `${hours}:${minutes.padStart(2, "0")}:${seconds.padStart(2, "0")}`
         );
       }
     }, 100);
@@ -71,25 +108,91 @@ export default function Switch() {
     });
   }
 
-  function handlePumpStateChange(newState) {
+  function handlePumpStateChange(newPumpState) {
     setIsLoadingPostInteract(true);
-    console.log("pump new state >", newState);
-
     // do api calls
-
-    setTimeout(() => {
-      setPumpEnabled(!pumpEnabled);
-      setIsLoadingPostInteract(false);
-    }, 1000);
+    if (newPumpState) {
+      // turn on pump & update pump off time to now + 10min
+      console.log("getting template rendering for now() + 10 mins..");
+      getRenderedTemplate(`{{ now() + timedelta( minutes = 1 ) }}`).then(
+        (timeString) => {
+          console.log(
+            "template rendered. Updating pump_off_datetime to",
+            timeString
+          );
+          setPumpOffTimeApi(timeString).then((res) => {
+            console.log(
+              "Pump is now on. Confirmed pump off time:",
+              res[0].state
+            );
+            if (isDate(res[0].state)) {
+              console.log(
+                res[0].state,
+                "is a date! updating local pumpOffTime."
+              );
+              setPumpOffTime(new Date(res[0].state));
+            }
+            setPumpEnabled(true);
+            setIsLoadingPostInteract(false);
+          });
+        }
+      );
+    } else {
+      // turn off pump
+      turnOffPump().then((res) => {
+        console.log("pump turned off.", res);
+        setPumpEnabled(false);
+        setIsLoadingPostInteract(false);
+      });
+    }
   }
 
   function handleTimeAddition() {
     setIsLoadingPostInteract(true);
 
-    // do api calls
-    setTimeout(() => {
-      setIsLoadingPostInteract(false);
-    }, 1000);
+    console.log("Adding 10 minutes to current pumpOffTime:", pumpOffTime);
+    if (pumpEnabled && isDate(pumpOffTime)) {
+      const currDate = new Date(pumpOffTime);
+      const minutes = 10;
+      let newTime = new Date(
+        currDate.setMinutes(currDate.getMinutes() + minutes)
+      );
+      let YYYY = newTime.getFullYear().toString().padStart(2, "0");
+      let MM = (newTime.getMonth() + 1).toString().padStart(2, "0");
+      let DD = newTime.getDate().toString().padStart(2, "0");
+      let hh = newTime.getHours().toString().padStart(2, "0");
+      let mm = newTime.getMinutes().toString().padStart(2, "0");
+      let ss = newTime.getSeconds().toString().padStart(2, "0");
+
+      newTime = `${YYYY}-${MM}-${DD} ${hh}:${mm}:${ss}`;
+      console.log("newtime > ", newTime);
+
+      getRenderedTemplate(`{{ as_datetime("${newTime}") }}`).then(
+        (timeString) => {
+          console.log(
+            "template rendered. Updating pump_off_datetime to",
+            timeString
+          );
+          setPumpOffTimeApi(timeString).then((res) => {
+            console.log("Time added. Confirmed pump off time:", res[0].state);
+            if (isDate(res[0].state)) {
+              console.log(
+                res[0].state,
+                "is a date! updating local pumpOffTime."
+              );
+              setPumpOffTime(new Date(res[0].state));
+            }
+            setPumpEnabled(true);
+            setIsLoadingPostInteract(false);
+          });
+        }
+      );
+    } else {
+      const errorMsg = `Cannot add time. Pump is currently off or pumpOffTime (${pumpOffTime}) is not a valid date`;
+      console.error(errorMsg);
+      alert(errorMsg);
+      setIsLoadingPostInteract(true);
+    }
   }
 
   return (
@@ -208,15 +311,11 @@ export default function Switch() {
   );
 }
 
-const InitialLoadContent = ({
-  initialLoadMessage = "Connecting to pump...",
-  errorMessage,
-}) => {
-  const [loadState, setLoadState] = useState(initialLoadMessage);
+const InitialLoadContent = ({ initialLoadMessage, errorMessage }) => {
   return (
     <>
       <div className="container">
-        <div className="loadState">{loadState}</div>
+        <div className="loadState">{initialLoadMessage}</div>
         {errorMessage && <div className="errorMessage">{errorMessage}</div>}
       </div>
       <style jsx>{`
