@@ -3,13 +3,11 @@ import { Inter } from "@next/font/google";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import {
-  getRenderedPumpOffDatetimeString,
   getRenderedTemplate,
   getSwitchState,
   setPumpOffTime,
   turnOffPump,
 } from "../api";
-import { invalidateQueries, queryClient } from "./_app";
 
 const inter = Inter({ subsets: ["latin"] });
 const minutesAdd = 10;
@@ -21,7 +19,6 @@ export default function Home() {
     status: switchStateStatus,
     refetch: refetchSwitchState,
     isLoading: switchStateIsLoading,
-    isStale: switchStateIsStale,
   } = useQuery({
     queryKey: "switchState",
     queryFn: getSwitchState,
@@ -93,7 +90,6 @@ export default function Home() {
             <div>
               switchStateIsLoading: {switchStateIsLoading ? "yes" : "no"}
             </div>
-            <div>switchStateIsStale: {switchStateIsStale ? "yes" : "noi"}</div>
           </div>
           <div className="timer">timer</div>
           <div className="controls">
