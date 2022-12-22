@@ -114,7 +114,7 @@ export default function Switch() {
     if (newPumpState) {
       // turn on pump & update pump off time to now + 10min
       console.log("getting template rendering for now() + 10 mins..");
-      getRenderedTemplate(`{{ now() + timedelta( minutes = 1 ) }}`).then(
+      getRenderedTemplate(`{{ now() + timedelta( minutes = 10 ) }}`).then(
         (timeString) => {
           console.log(
             "template rendered. Updating pump_off_datetime to",
