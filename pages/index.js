@@ -3,10 +3,12 @@ import { Inter } from "@next/font/google";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import {
+  apiEndpoint,
   getPumpOffDatetimeState,
   getRenderedTemplate,
   getSwitchState,
   setPumpOffTime as setPumpOffTimeApi,
+  switchEntityID,
   turnOffPump,
 } from "../api";
 
@@ -14,9 +16,10 @@ const inter = Inter({ subsets: ["latin"] });
 let defaultTimerValue = "00:00";
 
 export default function Switch() {
+  const [showDebug, setShowDebug] = useState(false);
   const [initialIsLoading, setInitialIsLoading] = useState(true);
   const [initialLoadMessage, setInitialLoadMessage] = useState(
-    "Connecting to pump..."
+    "Connecting to pump controller..."
   );
   const [initialLoadErrorMessage, setInitialLoadErrorMessage] = useState("");
   const [isLoadingPostInteract, setIsLoadingPostInteract] = useState(false);
@@ -31,24 +34,14 @@ export default function Switch() {
   const [timerString, setTimerString] = useState(defaultTimerValue);
 
   // switch state api
-  const {
-    data: switchStateData,
-    status: switchStateStatus,
-    refetch: refetchSwitchState,
-    isLoading: switchStateIsLoading,
-  } = useQuery({
+  const { data: switchStateData } = useQuery({
     queryKey: "switchState",
     queryFn: getSwitchState,
     refetchInterval: 3000,
   });
 
   // pump off datetime api
-  const {
-    data: pumpOffDatetimeData,
-    status: pumpOffDatetimeStatus,
-    refetch: refetchPumpOffDatetime,
-    isLoading: pumpOffDatetimeIsLoading,
-  } = useQuery({
+  const { data: pumpOffDatetimeData } = useQuery({
     queryKey: "pumpOffDatetime",
     queryFn: getPumpOffDatetimeState,
     refetchInterval: 3000,
@@ -58,7 +51,7 @@ export default function Switch() {
   useEffect(() => {
     console.log("switchStateChange > ", switchStateData);
     if (switchStateData?.state === "unavailable") {
-      setInitialLoadMessage("Connected to raspberry pi.");
+      setInitialLoadMessage("Connected to pump controller.");
       setInitialLoadErrorMessage("Cannot connect to pump switch.");
     }
     if (switchStateData?.state) {
@@ -99,14 +92,6 @@ export default function Switch() {
 
     return () => clearInterval(timerUpdate);
   }, [pumpOffTime]);
-
-  // local add minutes function
-  function localAddMinutes(minutes) {
-    setPumpOffTime((prevState) => {
-      let currDate = new Date(prevState);
-      return currDate.setMinutes(currDate.getMinutes() + minutes);
-    });
-  }
 
   function handlePumpStateChange(newPumpState) {
     setIsLoadingPostInteract(true);
@@ -245,7 +230,6 @@ export default function Switch() {
                   uncheckedColor="#9d4343"
                   checkedColor="#39ab39"
                 />
-
                 {pumpEnabled && (
                   <HugeAssButton
                     onClick={handleTimeAddition}
@@ -255,6 +239,27 @@ export default function Switch() {
                     Add 10 minutes
                   </HugeAssButton>
                 )}
+              </div>
+              <button
+                className="debugButton"
+                onClick={() => setShowDebug(!showDebug)}
+              >
+                Debug panel
+              </button>
+              <div className={`debugPanel ${showDebug && "shown"}`}>
+                <div>Switch EntityID: {switchEntityID}</div>
+                <div>API endpoint: {apiEndpoint}</div>
+                <div>pumpEnabled (local): {pumpEnabled ? "Y" : "N"}</div>
+                <div>pumpOffTime(local): {pumpOffTime.toString()}</div>
+                <div>
+                  isLoadingPostInteract: {isLoadingPostInteract ? "Y" : "N"}
+                </div>
+                <div>initialIsLoading: {initialIsLoading ? "Y" : "N"}</div>
+                <div>initialLoadMessage: {initialLoadMessage}</div>
+                <div>initialLoadErrorMessage: {initialLoadErrorMessage}</div>
+                <div>timerString (local): {timerString}</div>
+                <div>switchStateData: {switchStateData?.state}</div>
+                <div>pumpOffDatetimeData: {pumpOffDatetimeData?.state}</div>
               </div>
             </>
           )}
@@ -304,6 +309,25 @@ export default function Switch() {
             display: flex;
             flex-direction: column;
             align-items: center;
+          }
+          .debugButton {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            background: blue;
+            color: white;
+            padding: 0.2rem;
+            cursor: pointer;
+          }
+          .debugPanel {
+            border: 1px solid grey;
+            border-radius: 24px;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            display: none;
+          }
+          .debugPanel.shown {
+            display: block;
           }
         `}
       </style>
