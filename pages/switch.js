@@ -6,20 +6,44 @@ const inter = Inter({ subsets: ["latin"] });
 let defaultTimerValue = "00:00";
 
 export default function Switch() {
-  const [initialIsLoading, setInitialIsLoading] = useState(false);
+  const [initialIsLoading, setInitialIsLoading] = useState(true);
+  const [initialLoadMessage, setInitialLoadMessage] = useState(
+    "Connecting to pump..."
+  );
   const [initialLoadErrorMessage, setInitialLoadErrorMessage] = useState("");
   const [isLoadingPostInteract, setIsLoadingPostInteract] = useState(false);
 
   // local state. does not 100% reflect actual pump state.
-  const [pumpEnabled, setPumpEnabled] = useState(true);
-
-  const [testState, setTestState] = useState(false);
+  const [pumpEnabled, setPumpEnabled] = useState(false);
 
   // local state. does not 100% reflect actual pump off time.
   const [pumpOffTime, setPumpOffTime] = useState(new Date());
 
   // local state. does not 100% reflect actual timer value.
   const [timerString, setTimerString] = useState(defaultTimerValue);
+
+
+  const {
+    data: switchStateData,
+    status: switchStateStatus,
+    refetch: refetchSwitchState,
+    isLoading: switchStateIsLoading,
+  } = useQuery({
+    queryKey: "switchState",
+    queryFn: getSwitchState,
+    refetchInterval: 3000,
+  });
+
+  // initial load to get current pumpEnabled state & pumpOffTime from server.
+  useEffect(() => {
+    const simulatedInitialLoad = setTimeout(() => {
+      // TODO: replace with actual api call
+      setInitialIsLoading(false);
+      setPumpEnabled(true);
+      setPumpOffTime(new Date().setMinutes(new Date().getMinutes() + 10));
+    }, 1000);
+    return () => clearTimeout(simulatedInitialLoad);
+  }, []);
 
   // timer update loop based on pumpOffTime.
   useEffect(() => {
@@ -81,9 +105,9 @@ export default function Switch() {
       </Head>
       <div className={`container ${pumpEnabled && "enabled"}`}>
         <main className={inter.className}>
-          {initialIsLoading ? (
+          {initialIsLoading || initialLoadErrorMessage ? (
             <InitialLoadContent
-              initialLoadMessage="Connecting to pump..."
+              initialLoadMessage={initialLoadMessage}
               errorMessage={initialLoadErrorMessage}
             />
           ) : (
@@ -100,15 +124,23 @@ export default function Switch() {
               </div>
               {pumpEnabled && <div className="timer">{timerString}</div>}
 
-              {isDate(pumpOffTime) && new Date(pumpOffTime) > new Date() && (
-                <div>({new Date(pumpOffTime).toLocaleString()})</div>
-              )}
+              {pumpEnabled &&
+                isDate(pumpOffTime) &&
+                new Date(pumpOffTime) > new Date() && (
+                  <div style={{ marginBottom: "1rem" }}>
+                    ({new Date(pumpOffTime).toLocaleString()})
+                  </div>
+                )}
 
               <div className="controls">
                 <HugeAssToggle
                   checked={pumpEnabled}
                   onChange={(e) => handlePumpStateChange(e.target.checked)}
                   disabled={isLoadingPostInteract}
+                  borderWidth={0}
+                  innerSpacing={16}
+                  uncheckedColor="#9d4343"
+                  checkedColor="#39ab39"
                 />
 
                 {pumpEnabled && (
@@ -133,6 +165,7 @@ export default function Switch() {
             align-items: center;
             min-height: 100vh;
             background: #cbcbcb;
+            transition-duration: 500ms;
           }
           .container.enabled {
             background: #a9d5f1;
@@ -148,7 +181,6 @@ export default function Switch() {
             max-width: 1000px;
 
             flex-grow: 1;
-            border: 1px solid black;
           }
 
           .statusText {
@@ -176,7 +208,10 @@ export default function Switch() {
   );
 }
 
-const InitialLoadContent = ({ initialLoadMessage, errorMessage }) => {
+const InitialLoadContent = ({
+  initialLoadMessage = "Connecting to pump...",
+  errorMessage,
+}) => {
   const [loadState, setLoadState] = useState(initialLoadMessage);
   return (
     <>
@@ -192,6 +227,7 @@ const InitialLoadContent = ({ initialLoadMessage, errorMessage }) => {
 
           padding: 2rem;
           font-size: 2rem;
+          font-weight: 800;
         }
         .loadState {
           color: #282828;
@@ -211,6 +247,9 @@ var isDate = function (date) {
 
 const HugeAssToggle = ({
   borderWidth = 6,
+  innerSpacing = 4,
+  checkedColor = "#39ab39",
+  uncheckedColor = "#bb4747",
   width: containerWidth = 170,
   height: containerHeight = 70,
   disabled,
@@ -251,13 +290,13 @@ const HugeAssToggle = ({
           height: ${containerHeight}px;
           width: ${containerWidth}px;
           border: ${borderWidth}px solid black;
-          background: #d79f9f;
+          background: ${uncheckedColor};
           border-radius: 100px;
           cursor: pointer;
           transition-duration: 200ms;
         }
         .toggleContainer.checked {
-          background: #39ab39;
+          background: ${checkedColor};
         }
         .toggleContainer.disabled {
           background: #999999;
@@ -267,8 +306,8 @@ const HugeAssToggle = ({
         .toggleCircle {
           position: absolute;
           border-radius: 100px;
-          height: calc(100% - 4px);
-          margin: 2px;
+          height: calc(100% - ${innerSpacing}px);
+          margin: ${innerSpacing / 2}px;
           aspect-ratio: 1;
           border: ${borderWidth}px solid black;
           background: white;
@@ -290,7 +329,6 @@ const HugeAssToggle = ({
 const HugeAssButton = ({ borderWidth = 0, ...rest }) => {
   return (
     <>
-      {/* {JSON.stringify(inter.style)} */}
       <button {...rest} style={{ ...rest.style, ...inter.style }}>
         {rest.children}
       </button>
