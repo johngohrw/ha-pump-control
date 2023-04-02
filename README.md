@@ -1,6 +1,6 @@
 # HomeAssistant Pump Control
 
-A smart home control interface with a timer feature for a water pump.
+A smart home control interface for a water pump switch with a centralized timer feature for my family's convenience at home.
 
 ![image](https://user-images.githubusercontent.com/12826717/229370149-5a8677a1-5cd5-4093-a69c-498b3bf02228.png)
 
